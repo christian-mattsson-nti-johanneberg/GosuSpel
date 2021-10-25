@@ -150,6 +150,13 @@ class Grid
             cell.draw
         end
     end
+
+    def reset
+        for cell in @cells do
+            cell.visited = false
+            cell.visiting = false
+        end
+    end
 end
 
 
@@ -186,7 +193,6 @@ class Game < Gosu::Window
     end
 
     def update
-        
     end
 end
 
