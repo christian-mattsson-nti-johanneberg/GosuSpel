@@ -1,21 +1,5 @@
 require 'gosu'
-
-
-class Colors
-    attr_reader :black, :gray, :white, :aqua, :red, :green, :blue, :yellow, :cyan
-
-    def initialize()
-        @black = Gosu::Color.argb(0xff_000000)
-        @gray = Gosu::Color.argb(0xff_808080)
-        @white = Gosu::Color.argb(0xff_ffffff)
-        @aqua = Gosu::Color.argb(0xff_00ffff)
-        @red = Gosu::Color.argb(0xff_ff0000)
-        @green = Gosu::Color.argb(0xff_00ff00)
-        @blue = Gosu::Color.argb(0xff_0000ff)
-        @yellow = Gosu::Color.argb(0xff_ffff00)
-        @cyan = Gosu::Color.argb(0xff_00ffff)
-    end
-end
+require_relative 'colors.rb'
 
 
 def draw_rect(x, y, width, height, color, hollow=false)
