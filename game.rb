@@ -61,7 +61,7 @@ end
 
 class Grid
 
-    attr_reader :width, :height, :rows, :columns, :cellSizeX, :cellSizeY, :color
+    attr_reader :width, :height, :rows, :columns, :cells, :cellSizeX, :cellSizeY, :color
 
     def initialize(width, height, rows, columns, cellColors={"default": 0x00000000, "visiting": 0xffffffff, "visited": 0xffffffff})
         @width, @height = width, height
@@ -77,24 +77,72 @@ class Grid
         end
     end
 
-    def get_adjacent(cell)
-        row, col = cell
+    def get_adjacent(grid, cell)
+        row, col = cell.row, cell.column
 
         possible = []
 
         for r in [-1, 1] do
             if row + r <= @rows && row + r >= 0
-                possible.append([row + r, col])
+                possible.append(grid.cells[(row + r) * (grid.columns + 1) + col])
             end
         end
 
         for c in [-1, 1] do
             if col + c <= @columns && col + c >= 0
-                possible.append([row, col + c])
+                possible.append(grid.cells[row * (grid.columns + 1) + col + c])
             end
         end
 
         return possible
+    end
+
+    def BFS(startCell, endCell)
+        Thread.new do
+            queue = Queue.new
+            queue << startCell
+
+            while not queue.empty? do
+                current = queue.pop
+
+                if current.visited
+                    next
+                elsif current == endCell
+                    break
+                end
+                current.visited = true
+                get_adjacent(self, current).each do |cell|
+                    cell.visiting = true
+                    queue << cell
+                    sleep(0.01)
+                end
+            end
+
+        end
+    end
+
+    def DFS(startCell, endCell)
+        Thread.new do
+            stack = []
+            stack << startCell
+
+            while not stack.empty? do
+                current = stack.pop
+
+                if current.visited
+                    next
+                elsif current == endCell
+                    break
+                end
+                current.visited = true
+                get_adjacent(self, current).each do |cell|
+                    cell.visiting = true
+                    stack << cell
+                    sleep(0.01)
+                end
+            end
+
+        end
     end
 
     def draw
@@ -102,7 +150,6 @@ class Grid
             cell.draw
         end
     end
-
 end
 
 
@@ -113,16 +160,20 @@ class Game < Gosu::Window
         
         if colors == nil
             c = Colors.new
-            colors = {"default": colors.black, "visited": colors.red, "visiting": colors.green}
+            colors = {"default": colors.black, "visited": colors.red, "visiting": colors.yellow}
         end
         
         @grid = Grid.new(@windowW, @windowH, 20, 20, cellCollors=colors)
-        
-        @end = [rand(0...@grid.rows), rand(0..@grid.columns)]
-        @start = [rand(0...@grid.rows), rand(0..@grid.columns)]
+
+        @end = @grid.cells[rand(0...@grid.rows) * (@grid.columns + 1) + rand(0..@grid.columns)]
+        @start = @grid.cells[rand(0...@grid.rows) * (@grid.columns + 1) + rand(0..@grid.columns)]
+        @start.visiting = true
 
         super @windowW, @windowH
         self.caption = "Game"
+
+        @grid.BFS(@end, @start)
+        @grid.BFS(@start, @end)
     end
     
     def event_loop
@@ -131,15 +182,14 @@ class Game < Gosu::Window
 
     def draw
         # @font.draw_text("Score: #{@player.score}", 10, 10, ZOrder::UI, 1.0, 1.0, Gosu::Color::YELLOW)
-        @grid.draw
+        @grid.draw()
     end
 
     def update
         
     end
-
 end
 
 colors = Colors.new
-window = Game.new({"default": colors.black, "visited": colors.red, "visiting": colors.green})
+window = Game.new({"default": colors.black, "visited": colors.red, "visiting": colors.yellow, "path": colors.green})
 window.show()
