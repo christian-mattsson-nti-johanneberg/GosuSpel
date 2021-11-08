@@ -17,19 +17,23 @@ end
 class Cell
 
     attr_reader :row, :column, :sizeX, :sizeY, :colors
-    attr_accessor :visited, :visiting
+    attr_accessor :visited, :visiting, :path
 
-    def initialize(row, column, sizeX, sizeY, colors, visited=false, visiting=false)
+    def initialize(row, column, sizeX, sizeY, colors, visited=false, visiting=false, path=false)
         @row, @column = row, column
         @sizeX, @sizeY = sizeX, sizeY
         @colors = colors
 
         @visited = visited
         @visiting = visiting
+        @path = path
     end
 
     def draw()
-        if @visited
+        if @path
+            draw_rect(@column * @sizeX, @row * @sizeY, @sizeX, @sizeY, @colors[:path], false)
+            draw_rect(@column * @sizeX, @row * @sizeY, @sizeX, @sizeY, 0xffffffff, true)                
+        elsif @visited
             draw_rect(@column * @sizeX, @row * @sizeY, @sizeX, @sizeY, @colors[:visited], false)
             draw_rect(@column * @sizeX, @row * @sizeY, @sizeX, @sizeY, 0xffffffff, true)
         elsif @visiting
@@ -84,24 +88,28 @@ class Grid
     def BFS(startCell, endCell)
         Thread.new do
             queue = Queue.new
-            queue << startCell
+            queue << [startCell]
 
             while not queue.empty? do
-                current = queue.pop
+                currentPath = queue.pop
+                currentCell = currentPath[-1]
 
-                if current.visited
+                if currentCell.visited
                     next
-                elsif current == endCell
+                elsif currentCell == endCell
+                    currentPath.each do |cell|
+                        cell.path = true
+                    end
+
                     break
                 end
-                current.visited = true
-                get_adjacent(self, current).each do |cell|
+                currentCell.visited = true
+                get_adjacent(self, currentCell).each do |cell|
                     cell.visiting = true
-                    queue << cell
+                    queue << currentPath + [cell]
                     sleep(0.01)
                 end
             end
-
         end
     end
 
@@ -158,12 +166,12 @@ class Game < Gosu::Window
 
         @end = @grid.cells[rand(0...@grid.rows) * (@grid.columns + 1) + rand(0..@grid.columns)]
         @start = @grid.cells[rand(0...@grid.rows) * (@grid.columns + 1) + rand(0..@grid.columns)]
-        @start.visiting = true
+        @start.path = true
+        @end.path = true
 
         super @windowW, @windowH
         self.caption = "Game"
 
-        @grid.BFS(@end, @start)
         @grid.BFS(@start, @end)
     end
     

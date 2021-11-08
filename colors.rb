@@ -13,3 +13,5 @@ class Colors
         @cyan = 0xff_00ffff
     end
 end
+
+@x = 0xff_000000
