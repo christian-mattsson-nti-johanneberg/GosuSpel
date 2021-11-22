@@ -70,15 +70,23 @@ class Grid
 
         possible = []
 
-        for r in [-1, 1] do
+        [-1, 1].each do |r|
             if row + r <= @rows && row + r >= 0
                 possible.append(grid.cells[(row + r) * (grid.columns + 1) + col])
             end
         end
 
-        for c in [-1, 1] do
+        [-1, 1].each do |c|
             if col + c <= @columns && col + c >= 0
                 possible.append(grid.cells[row * (grid.columns + 1) + col + c])
+            end
+        end
+
+        [-1, 1].each do |r|
+            [-1, 1].each do |c|
+                if col + c <= @columns && col + c >= 0 && row + r <= @rows && row + r >= 0
+                    possible.append(grid.cells[(row + r) * (grid.columns + 1) + col + c])
+                end
             end
         end
 
@@ -138,13 +146,13 @@ class Grid
     end
 
     def draw
-        for cell in @cells do
+        @cells.each do |cell|
             cell.draw
         end
     end
 
     def reset
-        for cell in @cells do
+        @cells.each do |cell|
             cell.visited = false
             cell.visiting = false
         end
