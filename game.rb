@@ -53,18 +53,20 @@ end
 
 class Grid
 
-    attr_reader :width, :height, :rows, :columns, :cells, :cellSizeX, :cellSizeY, :color
+    attr_reader :width, :height, :rows, :columns, :cells, :cellSizeX, :cellSizeY
+    attr_accessor :animate
 
-    def initialize(width, height, rows, columns, cellColors={"default": 0xff_000000, "visiting": 0xff_ffffff, "visited": 0xff_ffffff}, updateSpeed=0.001)
+    def initialize(width, height, rows, columns, cellColors={"default": 0xff_000000, "visiting": 0xff_ffffff, "visited": 0xff_ffffff}, updateSpeed=0.001, animate=false)
         @width, @height = width, height
         @rows, @columns = rows, columns
         @cellSizeX, @cellSizeY, = @width / @columns, @height / @rows
         @colors = cellColors
         @updateSpeed = updateSpeed
+        @animate = animate
 
         @cells = []
-        (0..@rows).each do |row|
-            (0..@columns).each do |col|
+        (0...@rows).each do |row|
+            (0...@columns).each do |col|
                 @cells.append(Cell.new(row, col, @cellSizeX, @cellSizeY, @colors, false, false))
             end
         end
@@ -76,21 +78,21 @@ class Grid
         possible = []
 
         [-1, 1].each do |r|
-            if row + r <= @rows && row + r >= 0 && !grid.cells[(row + r) * (grid.columns + 1) + col].wall
-                possible.append(grid.cells[(row + r) * (grid.columns + 1) + col])
+            if row + r < @rows && row + r >= 0 && !grid.cells[(row + r) * grid.columns + col].wall
+                possible.append(grid.cells[(row + r) * grid.columns + col])
             end
         end
 
         [-1, 1].each do |c|
-            if col + c <= @columns && col + c >= 0 && !grid.cells[row * (grid.columns + 1) + col + c].wall
-                possible.append(grid.cells[row * (grid.columns + 1) + col + c])
+            if col + c < @columns && col + c >= 0 && !grid.cells[row * grid.columns + col + c].wall
+                possible.append(grid.cells[row * grid.columns + col + c])
             end
         end
 
         [-1, 1].each do |r|
             [-1, 1].each do |c|
-                if col + c <= @columns && col + c >= 0 && row + r <= @rows && row + r >= 0 && !grid.cells[(row + r) * (grid.columns + 1) + col + c].wall
-                    possible.append(grid.cells[(row + r) * (grid.columns + 1) + col + c])
+                if col + c < @columns && col + c >= 0 && row + r < @rows && row + r >= 0 && !grid.cells[(row + r) * grid.columns + col + c].wall
+                    possible.append(grid.cells[(row + r) * grid.columns + col + c])
                 end
             end
         end
@@ -118,7 +120,10 @@ class Grid
                 get_adjacent(self, currentCell).each do |cell|
                     cell.visiting = true
                     queue << currentPath + [cell]
-                    sleep(@updateSpeed)
+
+                    if @animate
+                        sleep(@updateSpeed)
+                    end
                 end
             end
         end
@@ -141,7 +146,9 @@ class Grid
                 get_adjacent(self, current).each do |cell|
                     cell.visiting = true
                     stack << cell
-                    sleep(@updateSpeed)
+                    if @animate
+                        sleep(@updateSpeed)
+                    end
                 end
             end
 
@@ -175,8 +182,8 @@ class Game < Gosu::Window
         
         @grid = Grid.new(@windowW, @windowH, 20, 20, colors, updateSpeed)
 
-        @end = @grid.cells[rand(0...@grid.rows) * (@grid.columns + 1) + rand(0..@grid.columns)]
-        @start = @grid.cells[rand(0...@grid.rows) * (@grid.columns + 1) + rand(0..@grid.columns)]
+        @end = @grid.cells[rand(0...@grid.rows) * @grid.columns + rand(0...@grid.columns)]
+        @start = @grid.cells[rand(0...@grid.rows) * @grid.columns + rand(0...@grid.columns)]
         @start.path = true
         @end.path = true
 
@@ -184,6 +191,8 @@ class Game < Gosu::Window
         self.caption = "Game"
 
         @simulate = false
+        @addWalls = true
+        @editingWalls = false
     end
 
     def draw
@@ -196,22 +205,36 @@ class Game < Gosu::Window
             @simulate = true
         end
 
-
-        if button_down?(Gosu::MsLeft) || button_down?(Gosu::MsRight)
+        if button_down?(Gosu::MsLeft)
             if mouse_y >= 0 && mouse_y <= @windowH && mouse_x >= 0 && mouse_x <= @windowW
-                cell = @grid.cells[(mouse_y / @grid.cellSizeY).to_i * (@grid.columns + 1) + (mouse_x / @grid.cellSizeX).to_i]
+                cell = @grid.cells[(mouse_y / @grid.cellSizeY).to_i * @grid.columns + (mouse_x / @grid.cellSizeX).to_i]
                 
-                if !cell.path
-                    cell.wall = button_down?(Gosu::MsLeft) ? true : false
+                if button_down?(Gosu::KbLeftShift) && (cell == @start || cell == @end)
+                    
+                else
+
+                    if !@editingWalls
+                        @addWalls = !cell.wall  # If we start on a wall, we want to remove walls
+                        @editingWalls = true 
+                    end
+
+                    if !cell.path && !cell.visited && !cell.visiting
+                        cell.wall = @addWalls
+                    end
                 end
             end
         end
+
+        if !button_down?(Gosu::MsLeft)
+            @editingWalls = false
+        end        
     end
 
     def update
         events()
         
         if @simulate
+            @grid.animate = true
             @grid.BFS(@start, @end)
         end
     end
