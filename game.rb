@@ -1,5 +1,6 @@
 require 'gosu'
 require_relative 'colors.rb'
+require 'set'
 
 
 def draw_rect(x, y, width, height, color, hollow=false)
@@ -17,15 +18,16 @@ end
 class Cell
 
     attr_reader :row, :column, :sizeX, :sizeY, :colors
-    attr_accessor :visited, :visiting, :path, :wall
+    attr_accessor :visited, :visiting, :path, :wall, :visitedBy
 
     def initialize(row, column, sizeX, sizeY, colors, wall=false, visited=false, visiting=false, path=false)
         @row, @column = row, column
         @sizeX, @sizeY = sizeX, sizeY
         @colors = colors
 
+        @visitedBy = Set.new()
         @visited = visited
-        @visiting = visiting
+        @visiting = false
         @path = path
         @wall = wall
     end
@@ -54,104 +56,18 @@ end
 class Grid
 
     attr_reader :width, :height, :rows, :columns, :cells, :cellSizeX, :cellSizeY
-    attr_accessor :animate
 
-    def initialize(width, height, rows, columns, cellColors={"default": 0xff_000000, "visiting": 0xff_ffffff, "visited": 0xff_ffffff}, updateSpeed=0.001, animate=false)
+    def initialize(width, height, rows, columns, cellColors={"default": 0xff_000000, "visiting": 0xff_ffffff, "visited": 0xff_ffffff})
         @width, @height = width, height
         @rows, @columns = rows, columns
         @cellSizeX, @cellSizeY, = @width / @columns, @height / @rows
         @colors = cellColors
-        @updateSpeed = updateSpeed
-        @animate = animate
 
         @cells = []
         (0...@rows).each do |row|
             (0...@columns).each do |col|
                 @cells.append(Cell.new(row, col, @cellSizeX, @cellSizeY, @colors, false, false))
             end
-        end
-    end
-
-    def get_adjacent(grid, cell)
-        row, col = cell.row, cell.column
-
-        possible = []
-
-        [-1, 1].each do |r|
-            if row + r < @rows && row + r >= 0 && !grid.cells[(row + r) * grid.columns + col].wall
-                possible.append(grid.cells[(row + r) * grid.columns + col])
-            end
-        end
-
-        [-1, 1].each do |c|
-            if col + c < @columns && col + c >= 0 && !grid.cells[row * grid.columns + col + c].wall
-                possible.append(grid.cells[row * grid.columns + col + c])
-            end
-        end
-
-        [-1, 1].each do |r|
-            [-1, 1].each do |c|
-                if col + c < @columns && col + c >= 0 && row + r < @rows && row + r >= 0 && !grid.cells[(row + r) * grid.columns + col + c].wall
-                    possible.append(grid.cells[(row + r) * grid.columns + col + c])
-                end
-            end
-        end
-
-        return possible
-    end
-
-    def BFS(startCell, endCell)
-        Thread.new do
-            queue = Queue.new
-            queue << [startCell]
-
-            while !queue.empty? do
-                currentPath = queue.pop
-                currentCell = currentPath[-1]
-
-                if currentCell.visited || currentCell.wall
-                    next
-                elsif currentCell == endCell
-                    currentPath.each { |cell| cell.path = true }
-                    break
-                end
-
-                currentCell.visited = true
-                get_adjacent(self, currentCell).each do |cell|
-                    cell.visiting = true
-                    queue << currentPath + [cell]
-
-                    if @animate
-                        sleep(@updateSpeed)
-                    end
-                end
-            end
-        end
-    end
-
-    def DFS(startCell, endCell)
-        Thread.new do
-            stack = []
-            stack << startCell
-
-            while not stack.empty? do
-                current = stack.pop
-
-                if current.visited
-                    next
-                elsif current == endCell
-                    break
-                end
-                current.visited = true
-                get_adjacent(self, current).each do |cell|
-                    cell.visiting = true
-                    stack << cell
-                    if @animate
-                        sleep(@updateSpeed)
-                    end
-                end
-            end
-
         end
     end
 
@@ -169,10 +85,117 @@ class Grid
 end
 
 
+class Pathfinder
+
+    attr_reader :BFS, :DFS, :simulating
+    attr_accessor :timeStep
+
+    def initialize(timeStep)
+        @timeStep = timeStep
+        @simulating = false
+    end
+
+    def get_adjacent(grid, cell)
+        row, col = cell.row, cell.column
+        rows, columns = grid.rows, grid.columns
+
+        possible = []
+
+        [-1, 1].each do |r|
+            if row + r < rows && row + r >= 0 && !grid.cells[(row + r) * grid.columns + col].wall
+                possible.append(grid.cells[(row + r) * grid.columns + col])
+            end
+        end
+
+        [-1, 1].each do |c|
+            if col + c < columns && col + c >= 0 && !grid.cells[row * grid.columns + col + c].wall
+                possible.append(grid.cells[row * grid.columns + col + c])
+            end
+        end
+
+        [-1, 1].each do |r|
+            [-1, 1].each do |c|
+                if col + c < columns && col + c >= 0 && row + r < rows && row + r >= 0 && !grid.cells[(row + r) * grid.columns + col + c].wall
+                    possible.append(grid.cells[(row + r) * grid.columns + col + c])
+                end
+            end
+        end
+
+        return possible
+    end
+
+    def BFS(grid, startCell, endCell)
+        @simulating = true
+
+        Thread.new do
+            queue = Queue.new
+            queue << [startCell]
+
+            while !queue.empty? do
+                currentPath = queue.pop
+                currentCell = currentPath[-1]
+
+                if currentCell.visitedBy.include?(self) || currentCell.wall
+                    next
+                elsif currentCell == endCell
+                    currentPath.each { |cell| cell.path = true }
+                    @simulating = false
+                    break
+                end
+
+                currentCell.visited = true
+                currentCell.visitedBy.add(self)
+                get_adjacent(grid, currentCell).each do |cell|
+                    cell.visiting = true
+                    queue << currentPath + [cell]
+
+                    sleep(@timeStep)
+                end
+            end
+        end
+    end
+
+    def DFS(grid, startCell, endCell)
+        @simulating = true
+        Thread.new do
+            stack = []
+            stack << [startCell]
+
+            while !stack.empty? do
+                currentPath = stack.pop
+                currentCell = currentPath[-1]
+
+                if currentCell.visitedBy.include?(self) || currentCell.wall
+                    next
+                elsif currentCell == endCell
+                    currentPath.each { |cell| cell.path = true }
+                    @simulating = false
+                    break
+                end
+
+                currentCell.visited = true
+                currentCell.visitedBy.add(self)
+                get_adjacent(grid, currentCell).each do |cell|
+                    cell.visiting = true
+                    stack << currentPath + [cell]
+
+                    sleep(@timeStep)
+                end
+            end
+        end
+    end
+
+end
+
 
 class Game < Gosu::Window
+=begin
+TODO:
+    - Fonvert state bools to state dict
+    - Fix input events
+=end
 
-    def initialize(colors=nil, updateSpeed=0.001)
+    def initialize(colors=nil, timeStep=0.001)
         @windowW, @windowH = [600, 600]
         
         if colors == nil
@@ -180,19 +203,38 @@ class Game < Gosu::Window
             colors = {"default": colors.white, "wall": colors.black, "visited": colors.red, "visiting": colors.yellow, "path": colors.green}
         end
         
-        @grid = Grid.new(@windowW, @windowH, 20, 20, colors, updateSpeed)
+        @grid = Grid.new(@windowW, @windowH, 20, 20, colors)
 
-        @end = @grid.cells[rand(0...@grid.rows) * @grid.columns + rand(0...@grid.columns)]
-        @start = @grid.cells[rand(0...@grid.rows) * @grid.columns + rand(0...@grid.columns)]
-        @start.path = true
-        @end.path = true
+        startCell = @grid.cells[rand(0...@grid.rows) * @grid.columns + rand(0...@grid.columns)]
+        startCell.path = true
+        @startCells = {startCell=>Pathfinder.new(timeStep)}
+
+        @endCell = @grid.cells[rand(0...@grid.rows) * @grid.columns + rand(0...@grid.columns)]
+        @endCell.path = true
 
         super @windowW, @windowH
         self.caption = "Game"
 
         @simulate = false
-        @addWalls = true
+        @timeStep = timeStep
         @editingWalls = false
+        @addWalls = true
+    end
+
+    def set_start_end(cell, start)
+        if start
+            if cell.path
+                cell.path = false
+                @startCells.delete(cell)
+            else
+                cell.path = true
+                @startCells[cell] = Pathfinder.new(@timeStep)
+            end
+        else
+            @endCell.path = false
+            cell.path = true
+            @endCell = cell
+        end
     end
 
     def draw
@@ -208,14 +250,17 @@ class Game < Gosu::Window
         if button_down?(Gosu::MsLeft)
             if mouse_y >= 0 && mouse_y <= @windowH && mouse_x >= 0 && mouse_x <= @windowW
                 cell = @grid.cells[(mouse_y / @grid.cellSizeY).to_i * @grid.columns + (mouse_x / @grid.cellSizeX).to_i]
-                
-                if button_down?(Gosu::KbLeftShift) && (cell == @start || cell == @end)
-                    
-                else
 
+                if button_down?(Gosu::KbLeftShift)
+                    set_start_end(cell, true)
+                elsif button_down?(Gosu::KbLeftControl)
+                    if cell != @endCell
+                        set_start_end(cell, false)
+                    end
+                else
                     if !@editingWalls
-                        @addWalls = !cell.wall  # If we start on a wall, we want to remove walls
-                        @editingWalls = true 
+                        @editingWalls = true
+                        @addWalls = !cell.wall  # If we start editing on a wall, we want to remove walls
                     end
 
                     if !cell.path && !cell.visited && !cell.visiting
@@ -234,8 +279,13 @@ class Game < Gosu::Window
         events()
         
         if @simulate
-            @grid.animate = true
-            @grid.BFS(@start, @end)
+            @startCells.each do |startCell, pathfinder|
+                if !pathfinder.simulating
+                    pathfinder.BFS(@grid, startCell, @endCell)
+                end
+            end
+
+            @simulate = false
         end
     end
 end
