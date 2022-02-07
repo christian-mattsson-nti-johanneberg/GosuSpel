@@ -1,22 +1,21 @@
 require 'gosu'
-require_relative 'colors.rb'
+require_relative 'colors'
 require 'set'
 
 
-def draw_rect(x, y, width, height, color, hollow=false)
+def draw_rect(x, y, width, height, color, hollow=false, z=0)
     if hollow
         Gosu.draw_line(x, y, color, x + width, y, color)
         Gosu.draw_line(x + width, y, color, x + width, y + width, color)
         Gosu.draw_line(x + width, y + width, color, x, y + width, color)
         Gosu.draw_line(x, y + width, color, x, y, color)
     else
-        Gosu.draw_rect(x, y, width, height, color)
+        Gosu.draw_rect(x, y, width, height, color, z, mode=:add)
     end
 end
 
 
 class Cell
-
     attr_reader :row, :column, :sizeX, :sizeY, :colors
     attr_accessor :visited, :visiting, :path, :wall, :visitedBy
 
@@ -27,27 +26,29 @@ class Cell
 
         @visitedBy = Set.new()
         @visited = visited
-        @visiting = false
+        @visiting = visiting
         @path = path
         @wall = wall
     end
 
     def draw()
-        if @path
-            draw_rect(@column * @sizeX, @row * @sizeY, @sizeX, @sizeY, @colors[:path], false)
-            draw_rect(@column * @sizeX, @row * @sizeY, @sizeX, @sizeY, 0xff_000000, true)                
-        elsif @visited
-            draw_rect(@column * @sizeX, @row * @sizeY, @sizeX, @sizeY, @colors[:visited], false)
-            draw_rect(@column * @sizeX, @row * @sizeY, @sizeX, @sizeY, 0xff_000000, true)
-        elsif @visiting
-            draw_rect(@column * @sizeX, @row * @sizeY, @sizeX, @sizeY, @colors[:visiting], false)
-            draw_rect(@column * @sizeX, @row * @sizeY, @sizeX, @sizeY, 0xff_000000, true)
-        elsif @wall
-            draw_rect(@column * @sizeX, @row * @sizeY, @sizeX, @sizeY, @colors[:wall], false)
-            draw_rect(@column * @sizeX, @row * @sizeY, @sizeX, @sizeY, 0xff_000000, true)
-        else
-            draw_rect(@column * @sizeX, @row * @sizeY, @sizeX, @sizeY, @colors[:default], false)
-            draw_rect(@column * @sizeX, @row * @sizeY, @sizeX, @sizeY, 0xff_000000, true)
+        @visitedBy.length.times do
+            if @path
+                draw_rect(@column * @sizeX, @row * @sizeY, @sizeX, @sizeY, @colors[:path], false)
+                draw_rect(@column * @sizeX, @row * @sizeY, @sizeX, @sizeY, @colors[:border], true)
+            elsif @visited
+                draw_rect(@column * @sizeX, @row * @sizeY, @sizeX, @sizeY, @colors[:visited], false)
+                draw_rect(@column * @sizeX, @row * @sizeY, @sizeX, @sizeY, @colors[:border], true)
+            elsif @visiting
+                draw_rect(@column * @sizeX, @row * @sizeY, @sizeX, @sizeY, @colors[:visiting], false)
+                draw_rect(@column * @sizeX, @row * @sizeY, @sizeX, @sizeY, @colors[:border], true)
+            elsif @wall
+                draw_rect(@column * @sizeX, @row * @sizeY, @sizeX, @sizeY, @colors[:wall], false)
+                draw_rect(@column * @sizeX, @row * @sizeY, @sizeX, @sizeY, @colors[:border], true)
+            else
+                draw_rect(@column * @sizeX, @row * @sizeY, @sizeX, @sizeY, @colors[:default], false)
+                draw_rect(@column * @sizeX, @row * @sizeY, @sizeX, @sizeY, @colors[:border], true)
+            end
         end
     end
 end
@@ -57,7 +58,7 @@ class Grid
 
     attr_reader :width, :height, :rows, :columns, :cells, :cellSizeX, :cellSizeY
 
-    def initialize(width, height, rows, columns, cellColors={"default": 0xff_000000, "visiting": 0xff_ffffff, "visited": 0xff_ffffff})
+    def initialize(width, height, rows, columns, cellColors={"default": 0xff_ffffff, "visiting": 0xff_ffff00, "visited": 0xff_ff0000})
         @width, @height = width, height
         @rows, @columns = rows, columns
         @cellSizeX, @cellSizeY, = @width / @columns, @height / @rows
@@ -291,5 +292,5 @@ TODO:
 end
 
 colors = Colors.new
-window = Game.new({"default": colors.white, "wall": colors.black, "visited": colors.red, "visiting": colors.yellow, "path": colors.green})
+window = Game.new({"default": colors.white, "border": colors.black, "wall": colors.black, "visited": colors.red, "visiting": colors.yellow, "path": colors.green})
 window.show()
